@@ -1,0 +1,21 @@
+{
+  
+  "flat_interest_days": 14,
+  "incremental_interest_per_day_percent": 2,
+  "max_interest_percent": 30,
+  "bucket_0_30_start": 1,
+  "bucket_0_30_end": 30,
+  "bucket_31_45_start": 31,
+  "bucket_31_45_end": 45,
+  "bucket_46_60_start": 46,
+  "bucket_46_60_end": 60,
+  "bucket_61_90_start": 61,
+  "bucket_61_90_end": 90,
+  "penalty_31_45_percent": 5,
+  "penalty_46_60_percent": 10,
+  "penalty_61_90_percent": 15,
+  "ignore_receipts_before_disb": true,
+  "include_receipts_after_days": 90,
+  "status_closed_principal_threshold": 0.0,
+  "duck_threads": null
+}

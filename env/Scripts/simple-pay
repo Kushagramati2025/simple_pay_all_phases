@@ -1,0 +1,6 @@
+#!D:\Master\Master\simple_pay\env\Scripts\python.exe
+import sys
+from simple_pay.streamlit_main import main
+
+if __name__ == '__main__':
+    sys.exit(main())
