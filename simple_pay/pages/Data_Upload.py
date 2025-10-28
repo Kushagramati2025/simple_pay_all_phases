@@ -40,6 +40,7 @@ import sys, tempfile, os
 
 APP_NAME = "SimplePay"
 
+
 def _safe_mkdir(p: Path) -> Path:
     p.mkdir(parents=True, exist_ok=True)
     return p
@@ -88,6 +89,39 @@ u_id = "u_id:" + str(st.session_state.get("u_id"))
 ERROR_DIR = get_error_dir()
 
 from simple_pay.service.helper import validation
+
+from pathlib import Path
+
+def get_editor_file() -> Path:
+    """
+    Always return a valid path for v1.txt, creating folders if missing.
+    Priority:
+      1) SIMPLEPAY_DATA_DIR/editor/v1.txt  (if env var set)
+      2) %LOCALAPPDATA%/SimplePay/editor/v1.txt
+      3) alongside package (simple_pay/editor/v1.txt)
+      4) tempdir/SimplePay/editor/v1.txt
+    """
+    import tempfile, os, sys
+    APP_NAME = "SimplePay"
+
+    base = None
+    override = os.getenv("SIMPLEPAY_DATA_DIR")
+    if override:
+        base = Path(override)
+    elif os.getenv("LOCALAPPDATA"):
+        base = Path(os.getenv("LOCALAPPDATA")) / APP_NAME
+    else:
+        try:
+            base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
+        except Exception:
+            base = Path(tempfile.gettempdir()) / APP_NAME
+
+    p = base / "editor" / "v1.txt"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    if not p.exists():
+        p.write_text("")   # create empty file if missing
+    return p
+
 
 # -----------------------
 # DB CONFIG
@@ -255,29 +289,52 @@ with st.sidebar:
     if st.button("🚪 Logout",key="reports_nav_logout"):
         st.session_state.clear()
         st.switch_page("pages/Login.py")
-    editor_mode = ""
-    with open(r"C:\project_v2\simple-pay-v2\simple_pay\editor\v1.txt", "r") as f:
-        editor_mode = f.read().strip().lower()
-    if user_id is not None :
-        if editor_mode == str(user_id)+u_id or u_id in editor_mode:
-            if st.button("Exit Upload mode"):
-                with open(r"C:\project_v2\simple-pay-v2\simple_pay\editor\v1.txt", "w") as f:
-                    f.write("")
-                st.success("System is now in normal mode. Data uploads are enabled.")
-                time.sleep(1)
+    # --- Editor / Upload Mode toggle (portable, single-source-of-truth) ---
+    EDITOR_FILE = get_editor_file()
+
+    def _read_token() -> str:
+        try:
+            return EDITOR_FILE.read_text(encoding="utf-8").strip().lower()
+        except Exception:
+            return ""
+
+    def _write_token(val: str) -> None:
+        EDITOR_FILE.write_text(val, encoding="utf-8")
+
+    # Build the token this user would own
+    safe_user_id = str(st.session_state.get("user_id") or "").strip()
+    safe_u_id    = str(st.session_state.get("u_id") or "").strip()
+    my_token     = (safe_user_id + "u_id:" + safe_u_id).lower()
+
+    current_token = _read_token()
+    is_free  = (current_token == "")
+    is_mine  = (current_token == my_token)
+    is_locked_by_other = (current_token != "") and (current_token != my_token)
+
+    st.divider()
+    st.subheader("Upload Mode")
+
+    if is_mine:
+        st.success("📥 Upload mode is ON (owned by you).")
+        if st.button("Exit Upload Mode"):
+            _write_token("")
+            st.toast("Upload mode disabled.")
+            time.sleep(0.7)
+            st.rerun()
+
+    elif is_locked_by_other:
+        st.error("⚠ System is currently in upload mode (owned by another user).")
+    else:
+        st.info("Upload mode is OFF.")
+        if safe_user_id:
+            if st.button("Enter Upload Mode"):
+                _write_token(my_token)
+                st.toast("Upload mode enabled.")
+                time.sleep(0.7)
                 st.rerun()
         else:
-            if editor_mode != "":
-                print(editor_mode,"-------------------")
-                st.error("System is currently in upload mode. Data uploads are disabled.")
-            else:
-                if st.button("Upload mode"):
-                    with open(r"C:\project_v2\simple-pay-v2\simple_pay\editor\v1.txt", "w") as f:
-                        f.write((str(user_id)+u_id))
-                    st.success("System is now in upload mode. Data uploads are disabled.")
-                    time.sleep(1)
-                    st.rerun()
-        
+            st.caption("Login required to enter upload mode.")
+    
         
         
 
@@ -755,8 +812,9 @@ overlay_css = """
 
     
 editor_mode = ""
-with open(r"C:\project_v2\simple-pay-v2\simple_pay\editor\v1.txt", "r") as f:
-    editor_mode = f.read().strip().lower()
+EDITOR_FILE = get_editor_file()
+editor_mode = EDITOR_FILE.read_text(encoding="utf-8").strip().lower()
+
 if editor_mode != (str(user_id)+u_id) and editor_mode != "":
     print("in editor mode",editor_mode,user_id)
     st.warning(" The system is currently in upload mode. Data uploads are disabled. Please try again later.")
